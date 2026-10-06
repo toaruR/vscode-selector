@@ -1,0 +1,949 @@
+{
+  "plan_version": 1,
+  "summary": "【順序規則】実行順は依存を満たす中で最小 ID を選ぶ決定的トポロジカル順 (T001>T002>T003>...>T017) とする。Win32 spike (T004, T005, T007, T008) は T001/T002/T003 など最小限の前提にのみ依存させ、純ロジック (T009 TitleParser, T010 Disambiguator, T011 設定/ログ) より小さい ID に置いて先に着手する。T009〜T011 は Win32 に実依存が無いため偽の依存は張らず、順序規則で後ろに置く。T012 は T008 (IChangeNotifier) に実依存する。【リスク表 (タスク / 不確実性 / 早期に置く理由 / spike 失敗基準)】T004 / EnumWindows・DWM cloaked・QueryFullProcessImageName が実機で設計 §5.1 の前提どおり動くか / 全体の入力源で外れると以降の全タスクに波及 / 2 ラウンド後も Interactive テスト (対象 2 件のみ返る) が通らなければ失敗。T005 / 200 窓で p95 ≤ 50ms (設計T15) が成立するか / 外れると §9 の定数・フィルタ評価順の見直しが必要 / 3 回計測のいずれも p95 ≤ 50ms にならない、または 1 回でも p95 > 100ms なら失敗。T006 / 前景ロック回避の分岐順序の正しさ / OS 非依存の fake で先に固める / fake テスト全分岐が 2 ラウンド後も通らなければ設計 §7 を見直す。T007 / SetForegroundWindow が実機で成功するか (OS の前景ロック依存) / 実機でしか分からず UI 体験に直結 / 2 ラウンド後も IsIconic==false や呼出列の検証が通らなければ失敗。T008 / SetWinEventHook の失敗・スレッド・メッセージループ挙動 / 変更検知 (G4) の主経路 / 2 ラウンド後も実フックの Changed 発火が確認できなければ失敗。T009〜T011, T013 は純ロジックで低リスク (後置)。T012 は仮想時計で決定的、T014〜T017 は UI/統合で Win32 spike の結果に依存して最後に置く。【spike 失敗時の代替 (発動条件 = 上記失敗基準)】T004 失敗: 設計 §5.1-5 のタイトル末尾 (APP_RE) 判定を主経路に格上げし T003 の WindowFilter・T004・T017 の期待値を改訂する。T005 失敗: フィルタ評価順 (クラス名を最初に判定) の見直しを T003/T004 で行い、それでも超過なら設計 §9 の EnumBudgetMs を再検討する。T007 失敗: 設計範囲の最終手段 ForegroundBlocked + FlashWindowEx を前提に T006/T007 の期待値を改訂する。T008 失敗: HookActive=false (ポーリングのみ, 設計T10) を既定動作として T012/T017 を改訂する。【ロールバック/部分停止】リポジトリは git 管理外のため、各タスク着手前に src・tests・docs をツリー外へ退避する (PowerShell: Compress-Archive -Path src,tests,docs -DestinationPath ..\\vscode-selector-backup\\<タスクID>-pre.zip -Force)。退避直後に復元検証を行う (Expand-Archive -Path ..\\vscode-selector-backup\\<タスクID>-pre.zip -DestinationPath $env:TEMP\\restore-<タスクID> -Force し、dotnet build $env:TEMP\\restore-<タスクID>\\tests\\VscodeSelector.Tests -c Release が exit 0 であること。T001 着手前は src/tests が未作成のため docs のみ退避し build 検証は省略する)。タスクが完了条件を満たせない場合は該当 zip を展開して直前の状態へ戻す。全タスクの verify は (1) src と tests の dotnet build、(2) そのタスクの個別テスト、(3) 全 headless テスト dotnet test --filter \"Category!=Interactive\" を含み、各タスク完了時点で build 成功かつ headless テスト全件 green であることを保証する。例外 (green 保証の対象外): [Trait(\"Category\",\"Interactive\")] 付きテストは対話的デスクトップが必要で、headless ランナーでは実行も証明もできない。対象は T004 (EnumeratorIntegrationTests)、T005 (EnumeratorPerfTests)、T007 (ActivatorIntegrationTests)、T008 (WinEventChangeNotifierIntegrationTests)、T017 (EndToEndTests)。これらは (3) から除外し、個別 verify で `--logger trx` を使い trx の executed が最小件数以上かつ failed==0 であることを確認する (テストが実際に走ったことの証明)。管理者権限 VS Code (設計T9) と別仮想デスクトップ (設計T12) の実機確認は自動化不能のため、T003 の WindowFilter へ cloaked / OpenProcess 失敗を注入する単体テストで代替する。タスク途中で停止しても、それ以前のタスクの成果物は独立して build・テスト可能である。 実装不要: VS Code Selector 設計書 — 文書タイトルのみで実装対象の内容を持たない。 実装不要: 13. 範囲外 (1 行) — 範囲外リスト。配布・インストーラ・CI 等は実装しない非スコープ宣言であり実装作業なし。",
+  "tasks": [
+    {
+      "id": "T001",
+      "title": "ソリューション骨格・CsWin32・データモデル/インタフェース定義とスモークテスト",
+      "intent": ".NET 8 WPF + CsWin32 + xUnit の骨格と §4 の型・インタフェースを固定し、スモークテストで build と P/Invoke 生成が通ることを実証する。以降の全タスクが依存する土台のため最初に置く。",
+      "design_refs": [
+        "2. 技術選定",
+        "3. アーキテクチャ",
+        "4. インタフェースとデータモデル"
+      ],
+      "depends_on": [],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/VscodeSelector.csproj",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/NativeMethods.txt",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/Contracts.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/SmokeTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 1,
+      "acceptance": [
+        "src/VscodeSelector は net8.0-windows・UseWPF・CsWin32 参照 (OutputType=Library) で dotnet build が exit 0",
+        "Contracts.cs に VsCodeEdition/RemoteKind/RawWindow/ParsedTitle/ProjectEntry/EnumerationException/ActivationResult/Options/SortOrder と IWindowEnumerator/ITitleParser/IWindowActivator/IChangeNotifier が §4 のシグネチャで存在する",
+        "SmokeTests: new EnumerationException(5).Win32Error==5、RawWindow の値等価、VsCodeEdition 3 値と ActivationResult 3 値の存在をアサート",
+        "SmokeTests: CsWin32 生成の PInvoke.IsWindow(HWND.Null) が false を返す (NativeMethods.txt の生成が有効)",
+        "NativeMethods.txt に EnumWindows, IsWindowVisible, GetWindow, DwmGetWindowAttribute, QueryFullProcessImageName, OpenProcess, SetWinEventHook, SetForegroundWindow, AllowSetForegroundWindow, keybd_event, AttachThreadInput, FlashWindowEx, IsIconic, ShowWindow が含まれる"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~SmokeTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T002",
+      "title": "定数表 Constants と §10 検算ロジック",
+      "intent": "§9 の定数正本と §10 の検算 (列数・行数・切詰め・遅延) をコード化しテストで固定する。他タスクが名前で参照する値を 1 箇所に集約するため。",
+      "design_refs": [
+        "9. 定数・既定値表 (正本。他節は名前でのみ参照する)",
+        "10. 検算 (数値・規則)"
+      ],
+      "depends_on": [
+        "T001"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/Constants.cs",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/LayoutMath.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/ConstantsTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 1,
+      "acceptance": [
+        "Constants の値が §9 表と一致 (PollIntervalMs=2000, PollIntervalHiddenMs=5000, DebounceMs=250, EnumBudgetMs=50, ActivateMaxAttempts=4, ActivateRetryDelayMs=50, MaxLabelChars=40 等) し APP_RE が §5.2 P1 と同一文字列",
+        "DetectLatencyMax==2300 かつ DetectLatencyMaxHidden==5300 を ConstantsTests が検証",
+        "LayoutMath.Columns(520)==3, Columns(240)==1, Rows(384)==6, Rows(383)==5 を検証",
+        "(ActivateMaxAttempts-1)*ActivateRetryDelayMs==150 を検証",
+        "Truncate: 長さ40 は無変更、長さ41 は先頭39文字+\"…\" (長さ40) を検証 (設計T5 の切詰め規則)"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~ConstantsTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T003",
+      "title": "WindowFilter (§5.1 フィルタ判定の純ロジック)",
+      "intent": "§5.1 の手順1〜5 を Win32 から切り離した純関数として実装し、headless で全分岐をテストする。設計T9/設計T12 の実機確認が自動化できないため、この単体テストで代替する。",
+      "design_refs": [
+        "5. ウィンドウ列挙",
+        "5.1 フィルタ (EnumWindows)"
+      ],
+      "depends_on": [
+        "T001",
+        "T002"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/WindowFilter.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/WindowFilterTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "WindowFilterTests: cloaked=true の入力が除外される (設計T12 の判定部)",
+        "WindowFilterTests: owner あり・タイトル空・WS_EX_TOOLWINDOW・非表示のいずれも除外される",
+        "WindowFilterTests: クラス名が Chrome_WidgetWin_1 以外は除外される",
+        "WindowFilterTests: exe 名が notepad/chrome/slack は不採用、extraProcessNames に追加すると採用、大文字小文字は無視 (設計T1 の判定部)",
+        "WindowFilterTests: OpenProcess 失敗かつタイトル末尾が APP_RE 一致なら採用 (ProcessName=\"\") されログ 1 行が出る。APP_RE 不一致なら除外 (設計T9 の判定部、設計 §5.1-5)",
+        "WindowFilterTests: 最小化窓は採用され IsMinimized==true が保持される"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~WindowFilterTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T004",
+      "title": "[高リスク spike] Win32WindowEnumerator と TestWindowHost (実 EnumWindows/DWM)",
+      "intent": "EnumWindows・DwmGetWindowAttribute・QueryFullProcessImageName を実ウィンドウで動かし、Chrome_WidgetWin_1 のダミー窓を作る TestWindowHost で検証する。Win32 前提が最も不確実なため最初に確認する。",
+      "design_refs": [
+        "5. ウィンドウ列挙"
+      ],
+      "depends_on": [
+        "T003"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/Win32WindowEnumerator.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/TestWindowHost.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/EnumeratorIntegrationTests.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/EnumeratorErrorTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "EnumeratorErrorTests (headless): 列挙デリゲートが 0 を返し最終エラーが 5 のとき Enumerate が Win32Error==5 の EnumerationException を投げる",
+        "EnumeratorIntegrationTests ([Trait Category=Interactive]): TestWindowHost が Chrome_WidgetWin_1 のダミー窓 2 件と他クラス窓 1 件を作成し、extraProcessNames にテストホスト exe 名を指定した Enumerate が 2 件のみ返す (設計T1)",
+        "EnumeratorIntegrationTests: 最小化した窓が IsMinimized==true で返る",
+        "spike 失敗基準: 2 ラウンド実施後も上記 Interactive テストが通らない場合は失敗とし、summary のフォールバック (タイトル末尾判定を主経路化) を発動する"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~EnumeratorErrorTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests -c Debug --filter \"FullyQualifiedName~EnumeratorIntegrationTests&Category=Interactive\" --logger \"trx;LogFileName=T004.trx\" --results-directory tests/VscodeSelector.Tests/TestResults",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "powershell -NoProfile -Command \"if (([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T004.trx -XPath '//*[local-name()=''Counters'']').Node.executed -ge 2) -and ([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T004.trx -XPath '//*[local-name()=''Counters'']').Node.failed -eq 0)) { exit 0 } else { exit 1 }\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T005",
+      "title": "列挙性能試験 (設計T15)",
+      "intent": "200 窓での Enumerate 性能を Release で計測し EnumBudgetMs=50 の前提が成立するかを早期に確認する。不成立なら §9 の定数やフィルタ評価順の見直しが必要なため前倒しする。",
+      "design_refs": [
+        "12. 受け入れテスト"
+      ],
+      "depends_on": [
+        "T004"
+      ],
+      "changes": [
+        {
+          "path": "tests/VscodeSelector.Tests/EnumeratorPerfTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 1,
+      "acceptance": [
+        "EnumeratorPerfTests ([Trait Category=Interactive]): EnumBudgetWindows(200) 個のダミー可視窓 (他クラス名) を作成し、ウォームアップ 10 回を捨てた後 Enumerate を 100 回計測する",
+        "p95 は昇順 100 サンプルの 95 番目 (index 94) と定義し、各計測の p95 を ITestOutputHelper に出力する",
+        "計測は最大 3 回 (初回 + 再計測最大 2 回) とし、いずれか 1 回の p95 ≤ 50 ms (許容誤差 0) で合格",
+        "どの 1 回でも p95 > 100 ms (予算の 2 倍) なら即失敗",
+        "Release 構成で実行"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests -c Release --filter \"FullyQualifiedName~EnumeratorPerfTests&Category=Interactive\" --logger \"trx;LogFileName=T005.trx\" --results-directory tests/VscodeSelector.Tests/TestResults",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "powershell -NoProfile -Command \"if (([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T005.trx -XPath '//*[local-name()=''Counters'']').Node.executed -ge 1) -and ([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T005.trx -XPath '//*[local-name()=''Counters'']').Node.failed -eq 0)) { exit 0 } else { exit 1 }\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T006",
+      "title": "[高リスク] WindowActivator の分岐ロジック (fake API で決定的に検証)",
+      "intent": "§7 の手順 (復元・SetForegroundWindow・回避策 a/b/c・点滅) を IForegroundApi 越しに実装し、fake で各分岐を決定的にテストする。前景ロック対応は不確実性が高いため、Win32 実機に依存しない部分を先に固める。",
+      "design_refs": [
+        "7. アクティブ化 (IWindowActivator)"
+      ],
+      "depends_on": [
+        "T001",
+        "T002"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/IForegroundApi.cs",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/WindowActivator.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/ActivatorTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "ActivatorTests (fake API): 初回 SetForegroundWindow 成功なら Success で呼出列が [SetForegroundWindow] のみ",
+        "ActivatorTests: 初回失敗→(a) 成功の呼出列が [SetForegroundWindow, AllowSetForegroundWindow(ASFW_ANY), SetForegroundWindow] で Success",
+        "ActivatorTests: (a) 失敗→(b) 成功の呼出列に keybd_event の押下と解放が (VK_MENU) 続けて含まれ Success",
+        "ActivatorTests: (b) 失敗→(c) 成功で AttachThreadInput(attach)→BringWindowToTop→SetForegroundWindow→AttachThreadInput(detach) の順に呼ばれ、(c) 内で例外を投げる fake でもデタッチが呼ばれる",
+        "ActivatorTests: 常時失敗で試行回数==4、各試行間隔==50ms (fake 時計)、戻り値 ForegroundBlocked、FlashWindowEx 呼出 1 回 (設計T16)",
+        "ActivatorTests: IsWindow=false、または PID/ClassName 不一致で WindowGone を返し SetForegroundWindow を呼ばない (設計T6)",
+        "ActivatorTests: IsIconic==true のときのみ ShowWindow(SW_RESTORE) が SetForegroundWindow より前に呼ばれ、false では呼ばれない"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~ActivatorTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T007",
+      "title": "[高リスク spike] Win32ForegroundApi と Activator 実機統合試験",
+      "intent": "IForegroundApi の Win32 実装を作り、最小化した実窓で復元と前景化を確認する。前景ロックは OS 状態依存で不確実なため、Success と ForegroundBlocked の両方を許容する決定的な検証条件にする。",
+      "design_refs": [
+        "7. アクティブ化 (IWindowActivator)"
+      ],
+      "depends_on": [
+        "T004",
+        "T006"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/Win32ForegroundApi.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/ActivatorIntegrationTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "ActivatorIntegrationTests ([Trait Category=Interactive]): 最小化した TestWindowHost 窓へ記録ラッパ経由で Activate し、戻り値 ∈ {Success, ForegroundBlocked} をアサート",
+        "同テスト: Activate 後 IsIconic(hwnd)==false をアサート",
+        "同テスト: 記録された呼出列の先頭が [ShowWindow(SW_RESTORE), SetForegroundWindow] の順",
+        "同テスト: 戻り値==Success のとき GetForegroundWindow()==hwnd、戻り値==ForegroundBlocked のとき FlashWindowEx が記録されていることをアサート (設計T7)",
+        "同テスト: 非最小化窓では ShowWindow が記録されない",
+        "spike 失敗基準: 2 ラウンド実施後も上記が通らない (IsIconic が false にならない、または例外が漏れる) 場合は失敗とし、ForegroundBlocked + FlashWindowEx を最終手段とする設計範囲で T006 の期待値を改訂する"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests -c Debug --filter \"FullyQualifiedName~ActivatorIntegrationTests&Category=Interactive\" --logger \"trx;LogFileName=T007.trx\" --results-directory tests/VscodeSelector.Tests/TestResults",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "powershell -NoProfile -Command \"if (([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T007.trx -XPath '//*[local-name()=''Counters'']').Node.executed -ge 3) -and ([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T007.trx -XPath '//*[local-name()=''Counters'']').Node.failed -eq 0)) { exit 0 } else { exit 1 }\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T008",
+      "title": "[高リスク spike] WinEventChangeNotifier (SetWinEventHook, HookActive)",
+      "intent": "SetWinEventHook による変更通知と、フック失敗時に HookActive=false でポーリングのみへ縮退する挙動を実装する。フックはスレッド/メッセージループ依存で不確実なため早期に確認する。",
+      "design_refs": [
+        "6. 更新戦略"
+      ],
+      "depends_on": [
+        "T001",
+        "T004"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/IWinEventHookApi.cs",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/Win32WinEventHookApi.cs",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/WinEventChangeNotifier.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/WinEventChangeNotifierTests.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/WinEventChangeNotifierIntegrationTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "WinEventChangeNotifierTests: フック API ダブルが 0 を返すと Start() が例外を投げず HookActive==false (設計T10)",
+        "WinEventChangeNotifierTests: SHOW/DESTROY/NAMECHANGE かつ idObject==OBJID_WINDOW のイベントのみ Changed が発火し、他 idObject では発火しない",
+        "WinEventChangeNotifierTests: Changed がスレッドプールスレッド (UI スレッドでない) 上で発火する",
+        "WinEventChangeNotifierTests: Dispose で UnhookWinEvent が 1 回呼ばれる",
+        "WinEventChangeNotifierIntegrationTests ([Trait Category=Interactive]): 実フックで TestWindowHost の窓を閉じると Changed が 1 秒以内に発火し HookActive==true",
+        "spike 失敗基準: 2 ラウンド実施後も実フックの Integration テストが通らない場合は失敗とし、HookActive=false の縮退を既定動作として T012/T017 の期待値を改訂する"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~WinEventChangeNotifierTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests -c Debug --filter \"FullyQualifiedName~WinEventChangeNotifierIntegrationTests&Category=Interactive\" --logger \"trx;LogFileName=T008.trx\" --results-directory tests/VscodeSelector.Tests/TestResults",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "powershell -NoProfile -Command \"if (([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T008.trx -XPath '//*[local-name()=''Counters'']').Node.executed -ge 1) -and ([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T008.trx -XPath '//*[local-name()=''Counters'']').Node.failed -eq 0)) { exit 0 } else { exit 1 }\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T009",
+      "title": "TitleParser (P0〜P5) と切詰め",
+      "intent": "§5.2 の P0〜P5 でタイトルからプロジェクト名を抽出する純ロジックを実装する。設計T2a〜設計T2h, 設計T4, 設計T5 を満たし例外を投げないことを保証するため。",
+      "design_refs": [
+        "5.2 タイトル解析 (TitleParser) — 規則はここで 1 回だけ定義する"
+      ],
+      "depends_on": [
+        "T001",
+        "T002"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/TitleParser.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/TitleParserTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "設計T2a〜設計T2h の 8 ケースが §12 表の期待値 (ProjectName/Remote/RemoteLabel/IsWorkspaceFile/IsNoFolder) で全通過",
+        "設計T4: 既定で \"app\"、titlePattern 設定時 \"my - app\"",
+        "設計T5: A41 個 → A39 個+\"…\" (長さ40)、A40 個は無変更",
+        "不正な titlePattern / project グループ無しは null 扱いで例外を投げない",
+        "往復: 設計T2b/設計T2d/設計T2e の解析結果から元タイトルを再構成して一致 (§10)",
+        "空文字・APP_RE 不一致の入力でも例外を投げず全文フォールバック (§5.2 P5)"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~TitleParserTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T010",
+      "title": "Disambiguator.Apply (同名区別・#N 保持)",
+      "intent": "同名プロジェクトに Remote/Edition/#N を付加して区別する純関数を実装する。設計T3 の一意性と再列挙での番号不変を満たすため。",
+      "design_refs": [
+        "5.3 同名の区別 (Disambiguator)"
+      ],
+      "depends_on": [
+        "T001"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/Disambiguator.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/DisambiguatorTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 1,
+      "acceptance": [
+        "設計T3: 同名 app を Stable x2 + Insiders x1 で DisplayName が \"app\", \"app #2\", \"app (Insiders)\" で重複なし",
+        "同じ sequenceMap で再 Apply しても番号が不変",
+        "同名が無ければ DisplayName==ProjectName で、入力と同順・同件数を返す",
+        "Remote ラベルがあれば \" [WSL: Ubuntu]\" が付加される",
+        "空リスト入力で空を返し例外を投げない"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~DisambiguatorTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T011",
+      "title": "Options ローダ (settings.json) と FileLogger",
+      "intent": "settings.json の読込・検証と日次ログ出力を実装し、破損設定でも既定値で起動できるようにする (設計T13)。",
+      "design_refs": [
+        "4.1 設定 `Options` (`%APPDATA%\\VsCodeSelector\\settings.json`)",
+        "8. UI"
+      ],
+      "depends_on": [
+        "T001"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/ILogger.cs",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/FileLogger.cs",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/OptionsLoader.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/OptionsLoaderTests.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/FileLoggerTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "OptionsLoaderTests: ファイル不在で §4.1 表の全既定値を返す",
+        "OptionsLoaderTests: 不正 JSON で全既定値を返し警告ログ 1 行以上、ファイルは上書きされない (設計T13)",
+        "OptionsLoaderTests: 型違反キーのみ既定値に戻り警告ログ、未知キーは無視",
+        "OptionsLoaderTests: 不正正規表現・project グループ無しの titlePattern は null になり警告ログ (設計T13)",
+        "FileLoggerTests: 注入した一時ディレクトリに app-YYYYMMDD.log 名の日次ファイルが作られ、既存の古いファイルは削除されない"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~OptionsLoaderTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~FileLoggerTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T012",
+      "title": "UpdateScheduler (ポーリング + デバウンス + 非表示間隔)",
+      "intent": "ポーリング・デバウンス・非表示時間隔を仮想時計で制御するスケジューラを実装する。検出遅延 2300ms/5300ms の保証をテストで固定するため。",
+      "design_refs": [
+        "6. 更新戦略"
+      ],
+      "depends_on": [
+        "T002",
+        "T008"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/UpdateScheduler.cs",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/IClock.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/UpdateSchedulerTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "DebounceMs(250) 以内の連続 Changed が列挙要求 1 回にまとまる",
+        "HookActive==false でもポーリングのみで列挙が起動する (設計T10)",
+        "仮想時計で t=1 に窓が閉じた最悪ケースの反映が 2300ms 以内 (2301ms 以上にならない) (設計T8 境界)",
+        "アプリ最小化中は PollIntervalHiddenMs(5000) を使い最悪遅延が 5300ms 以内",
+        "列挙が EnumBudgetMs 超過でも警告ログのみで処理を継続する"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~UpdateSchedulerTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T013",
+      "title": "MainViewModel (OnChanged / Activate / 差分更新 / 並び順)",
+      "intent": "列挙→解析→区別→差分適用を行う ViewModel を実装し、F3/F10 のエラー方針・並び順・hideOnActivate を単体テストで保証する。",
+      "design_refs": [
+        "5.3 同名の区別 (Disambiguator)",
+        "6. 更新戦略"
+      ],
+      "depends_on": [
+        "T009",
+        "T010",
+        "T011",
+        "T012"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/MainViewModel.cs",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/ProjectEntryDiff.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/MainViewModelTests.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/FakeCollaborators.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "IWindowEnumerator が EnumerationException を投げると一覧は前回のまま、ステータス警告が設定され、次回成功で復帰 (設計T11)",
+        "Activate が WindowGone を返すと該当エントリを即削除し再列挙する (設計T6)",
+        "ForegroundBlocked でトースト文言が設定され ToastMs(3000) 後に消える",
+        "Hwnd キー差分で Add/Remove/Update し、変化の無い Hwnd の ProjectEntry 参照が保持される",
+        "sortOrder=name は CurrentCultureIgnoreCase 昇順の安定ソート、zorder は列挙順",
+        "Activate 成功後 hideOnActivate==true なら最小化要求が 1 回発行される"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~MainViewModelTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T014",
+      "title": "MainWindow (WPF XAML) と XAML 構造テスト",
+      "intent": "§8 の UI を MainWindow に実装し、XAML を XML として解析する構造テストで WrapPanel・スクロール・キー操作・ツールチップを自動検証する。ビルド成功だけでは仕様を保証できないため。",
+      "design_refs": [
+        "8. UI"
+      ],
+      "depends_on": [
+        "T013"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/MainWindow.xaml",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/MainWindow.xaml.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/XamlStructureTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "XamlStructureTests: MainWindow.xaml に WrapPanel が 1 つ存在し、ScrollViewer の VerticalScrollBarVisibility==\"Auto\"",
+        "XamlStructureTests: ボタンテンプレートの ToolTip と AutomationProperties.Name が FullTitle にバインドされている",
+        "XamlStructureTests: InputBindings に Ctrl+1〜Ctrl+9 (9 件)、Enter、Esc に相当するキーバインドが存在する",
+        "XamlStructureTests: 空状態文言 \"開いている VS Code がありません\" と高さ 24 のステータスバー要素が存在する",
+        "XamlStructureTests: ボタン寸法 Width=150 Height=48 Margin=6 が定義されている",
+        "src/VscodeSelector の dotnet build が exit 0"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~XamlStructureTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T015",
+      "title": "App 組立・app.manifest (PerMonitorV2) と manifest テスト",
+      "intent": "実コンポーネントを組み立てる App と PerMonitorV2 manifest を追加し、csproj を WinExe 化して実アプリとして起動可能にする。manifest はテストで内容を検証する。",
+      "design_refs": [
+        "8. UI",
+        "3. アーキテクチャ"
+      ],
+      "depends_on": [
+        "T014",
+        "T004",
+        "T007",
+        "T008",
+        "T011"
+      ],
+      "changes": [
+        {
+          "path": "src/VscodeSelector/App.xaml",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/App.xaml.cs",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/app.manifest",
+          "kind": "add"
+        },
+        {
+          "path": "src/VscodeSelector/VscodeSelector.csproj",
+          "kind": "modify"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/ManifestTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "ManifestTests: app.manifest を XML 解析し dpiAwareness 要素の値に PerMonitorV2 を含む",
+        "ManifestTests: VscodeSelector.csproj に ApplicationManifest=app.manifest と OutputType=WinExe が含まれる",
+        "App.xaml.cs が Win32WindowEnumerator, TitleParser, WindowActivator, WinEventChangeNotifier, OptionsLoader, FileLogger を生成して MainViewModel に渡す (dotnet build が exit 0)",
+        "src/VscodeSelector の dotnet build -c Release が exit 0"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~ManifestTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T016",
+      "title": "UI レイアウト試験 (設計T14) と STA ホスト",
+      "intent": "テスト用 STA スレッドヘルパで MainWindow を生成し、19 個のモックで 3 列 6 行 + スクロールを実測する。DPI は VisualTreeHelper.SetRootDpi で差し替えて §10 の検算値が実 UI で成立することを確認する。",
+      "design_refs": [
+        "10. 検算 (数値・規則)"
+      ],
+      "depends_on": [
+        "T014"
+      ],
+      "changes": [
+        {
+          "path": "tests/VscodeSelector.Tests/StaTestHelper.cs",
+          "kind": "add"
+        },
+        {
+          "path": "tests/VscodeSelector.Tests/MainWindowLayoutTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "StaTestHelper: STA スレッド上で Dispatcher を起動し、委譲関数の結果/例外を呼出元へ返し、終了時に Dispatcher を Shutdown する",
+        "MainWindowLayoutTests: クライアント 520x384 に 19 個のモックで WrapPanel の列数==3、可視行数==6、ScrollViewer の ComputedVerticalScrollBarVisibility==Visible (設計T14)",
+        "MainWindowLayoutTests: 18 個では ComputedVerticalScrollBarVisibility==Collapsed",
+        "MainWindowLayoutTests: DPI は VisualTreeHelper.SetRootDpi(window, new DpiScale(s, s)) を s=1.0, 1.5, 2.0 で設定し、固定サイズ 520x384 で Measure/Arrange した後、列数==3 かつスクロールバー可視を 3 通りともアサート",
+        "MainWindowLayoutTests: 最小 240x120 で列数==1 かつ 1 行が可視"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"FullyQualifiedName~MainWindowLayoutTests&Category!=Interactive\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "T017",
+      "title": "エンドツーエンド受け入れ試験 (設計T1/設計T3/設計T6/設計T8/設計T10/設計T11 の統合)",
+      "intent": "実コンポーネントと TestWindowHost で統合挙動を確認し、設計の全体受け入れ基準に到達する。",
+      "design_refs": [
+        "1. 目的とスコープ",
+        "11. 失敗モード・機構・トレードオフ対応表 (1 対 1)",
+        "12. 受け入れテスト"
+      ],
+      "depends_on": [
+        "T015",
+        "T016",
+        "T007",
+        "T008",
+        "T009",
+        "T010",
+        "T012"
+      ],
+      "changes": [
+        {
+          "path": "tests/VscodeSelector.Tests/EndToEndTests.cs",
+          "kind": "add"
+        }
+      ],
+      "estimate_rounds": 2,
+      "acceptance": [
+        "EndToEndTests ([Trait Category=Interactive]): 実コンポーネントで窓を閉じて 2300ms 以内にエントリが消える (設計T8)",
+        "EndToEndTests: HookActive==false のフック失敗ダブルでも同条件で 2300ms 以内に消える (設計T10)",
+        "EndToEndTests: 同名 3 窓 (Stable x2, Insiders x1) で DisplayName が一意かつ再列挙で不変 (設計T3)",
+        "EndToEndTests: 閉じた窓の Activate が WindowGone を返しエントリが消える (設計T6)",
+        "Category!=Interactive の全テストが exit 0、Category=Interactive 全テストが trx の executed>=11 かつ failed==0 (設計 全体受け入れ基準)"
+      ],
+      "verify": [
+        {
+          "command": "dotnet build src/VscodeSelector/VscodeSelector.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet build tests/VscodeSelector.Tests/VscodeSelector.Tests.csproj -c Release",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests -c Debug --filter \"FullyQualifiedName~EndToEndTests&Category=Interactive\" --logger \"trx;LogFileName=T017.trx\" --results-directory tests/VscodeSelector.Tests/TestResults",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "powershell -NoProfile -Command \"if (([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T017.trx -XPath '//*[local-name()=''Counters'']').Node.executed -ge 4) -and ([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T017.trx -XPath '//*[local-name()=''Counters'']').Node.failed -eq 0)) { exit 0 } else { exit 1 }\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests -c Debug --filter \"Category=Interactive\" --logger \"trx;LogFileName=T017all.trx\" --results-directory tests/VscodeSelector.Tests/TestResults",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "powershell -NoProfile -Command \"if (([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T017all.trx -XPath '//*[local-name()=''Counters'']').Node.executed -ge 11) -and ([int](Select-Xml -Path tests/VscodeSelector.Tests/TestResults/T017all.trx -XPath '//*[local-name()=''Counters'']').Node.failed -eq 0)) { exit 0 } else { exit 1 }\"",
+          "expect_exit_code": 0
+        },
+        {
+          "command": "dotnet test tests/VscodeSelector.Tests --filter \"Category!=Interactive\"",
+          "expect_exit_code": 0
+        }
+      ]
+    }
+  ]
+}

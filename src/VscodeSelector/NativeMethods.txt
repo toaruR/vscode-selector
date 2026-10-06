@@ -1,0 +1,15 @@
+EnumWindows
+IsWindow
+IsWindowVisible
+GetWindow
+DwmGetWindowAttribute
+QueryFullProcessImageName
+OpenProcess
+SetWinEventHook
+SetForegroundWindow
+AllowSetForegroundWindow
+keybd_event
+AttachThreadInput
+FlashWindowEx
+IsIconic
+ShowWindow
