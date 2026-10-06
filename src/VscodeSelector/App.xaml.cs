@@ -7,6 +7,8 @@ public partial class App : Application
 {
     private UpdateScheduler? _scheduler;
     private WinEventChangeNotifier? _notifier;
+    // タイマースレッドから参照するため UI スレッドで StateChanged 時に更新する。
+    private volatile bool _minimized;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -27,8 +29,8 @@ public partial class App : Application
             uiDispatch: a => Dispatcher.BeginInvoke(a),
             logger: logger);
         window = new MainWindow(vm) { Topmost = options.Topmost };
-        _scheduler = new UpdateScheduler(_notifier, clock, vm.OnChanged,
-            () => window.WindowState == WindowState.Minimized, logger);
+        window.StateChanged += (_, _) => _minimized = window.WindowState == WindowState.Minimized;
+        _scheduler = new UpdateScheduler(_notifier, clock, vm.OnChanged, () => _minimized, logger);
         MainWindow = window;
         window.Show();
         vm.OnChanged();
