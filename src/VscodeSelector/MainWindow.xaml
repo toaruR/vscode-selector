@@ -3,8 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:VscodeSelector"
         Title="VS Code Selector"
-        Width="520" Height="384" MinWidth="240" MinHeight="120"
-        UseLayoutRounding="True">
+        Width="520" Height="384" MinWidth="188" MinHeight="62"
+        UseLayoutRounding="True"
+        ResizeMode="CanResize" Background="White"
+        BorderBrush="#FFC8C8C8" BorderThickness="1">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0"
+                      CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
     <Window.InputBindings>
         <KeyBinding Key="D1" Modifiers="Control" Command="{x:Static local:MainWindow.ActivateIndexCommand}" CommandParameter="0" />
         <KeyBinding Key="D2" Modifiers="Control" Command="{x:Static local:MainWindow.ActivateIndexCommand}" CommandParameter="1" />
@@ -21,13 +27,30 @@
     <Window.Resources>
         <local:EditionLabelConverter x:Key="EditionLabel" />
     </Window.Resources>
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="24" />
-        </Grid.RowDefinitions>
-        <Grid Grid.Row="0">
-            <ScrollViewer x:Name="ListScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <DockPanel x:Name="Root" LastChildFill="True">
+        <!-- 短辺に置く擬似バー。向きはウィンドウの縦横比に応じて code-behind で切り替える。 -->
+        <Border x:Name="GripBar" DockPanel.Dock="Left" Width="24" Background="#FFE4E4E4"
+                Cursor="SizeAll" MouseLeftButtonDown="OnGripMouseDown">
+            <Button x:Name="CloseButton" Width="24" Height="24" Content="✕" FontSize="11"
+                    HorizontalAlignment="Center" VerticalAlignment="Top" Cursor="Arrow"
+                    ToolTip="閉じる" AutomationProperties.Name="閉じる" Focusable="False" Click="OnCloseClick">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#FFE81123" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </Border>
+        <Grid>
+            <ScrollViewer x:Name="ListScroll" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl x:Name="EntriesList" ItemsSource="{Binding Entries}" KeyboardNavigation.TabNavigation="Continue">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -73,9 +96,19 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
+            <Border x:Name="StatusBar" VerticalAlignment="Bottom" Background="#E0F0F0F0">
+                <TextBlock x:Name="StatusText" Text="{Binding StatusText}" Margin="6,4"
+                           TextTrimming="CharacterEllipsis" />
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusText}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
         </Grid>
-        <Border x:Name="StatusBar" Grid.Row="1" Height="24" Background="#FFF0F0F0">
-            <TextBlock x:Name="StatusText" Text="{Binding StatusText}" VerticalAlignment="Center" Margin="6,0" />
-        </Border>
-    </Grid>
+    </DockPanel>
 </Window>

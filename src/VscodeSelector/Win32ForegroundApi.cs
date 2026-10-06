@@ -8,6 +8,7 @@ internal sealed class Win32ForegroundApi : IForegroundApi
 {
     private const uint AsfwAny = 0xFFFFFFFF;
     private const int SwRestore = 9;
+    private const int SwMinimize = 6;
     private const uint FlashwAll = 3;
     private const uint FlashwTimerNoFg = 12;
     private const uint KeyeventfKeyUp = 2;
@@ -29,6 +30,7 @@ internal sealed class Win32ForegroundApi : IForegroundApi
 
     public bool IsIconic(nint hwnd) => N.IsIconic(hwnd);
     public void ShowWindowRestore(nint hwnd) => N.ShowWindow(hwnd, SwRestore);
+    public void ShowWindowMinimize(nint hwnd) => N.ShowWindow(hwnd, SwMinimize);
     public bool SetForegroundWindow(nint hwnd) => N.SetForegroundWindow(hwnd);
     public void AllowSetForegroundWindowAny() => N.AllowSetForegroundWindow(AsfwAny);
     public void KeybdEvent(byte vk, bool keyUp) => N.keybd_event(vk, 0, keyUp ? KeyeventfKeyUp : 0, 0);

@@ -31,6 +31,13 @@ internal sealed class FakeActivator : IWindowActivator
         OnActivate?.Invoke();
         return Result;
     }
+    public bool MinimizeResult { get; set; } = true;
+    public List<nint> MinimizeCalls { get; } = new();
+    public bool TryMinimize(nint hwnd, uint expectedPid, string expectedClassName)
+    {
+        MinimizeCalls.Add(hwnd);
+        return MinimizeResult;
+    }
 }
 
 internal sealed class VirtualClock : IClock

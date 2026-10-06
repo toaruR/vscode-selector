@@ -20,8 +20,11 @@ internal static class Constants
     public const int WindowHeight = 384;
     public const int StatusBarHeight = 24;
     public const int ListHeight = WindowHeight - StatusBarHeight;
-    public const int MinWidth = 240;
-    public const int MinHeight = 120;
+    public const int WindowBorder = 1;
+    // 1 列/1 行にぴったり縮められる最小。横長 (左バー) 時はバー幅を足した MinWidthWithSideBar を使う。
+    public const int MinWidth = ButtonCellWidth + 2 * WindowBorder;
+    public const int MinWidthWithSideBar = MinWidth + StatusBarHeight;
+    public const int MinHeight = ButtonHeight + 2 * ButtonMargin + 2 * WindowBorder;
 
     public const int DetectLatencyMax = PollIntervalMs + DebounceMs + EnumBudgetMs;
     public const int DetectLatencyMaxHidden = PollIntervalHiddenMs + DebounceMs + EnumBudgetMs;

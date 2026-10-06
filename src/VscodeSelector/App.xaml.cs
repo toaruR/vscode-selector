@@ -7,6 +7,7 @@ public partial class App : Application
 {
     private UpdateScheduler? _scheduler;
     private WinEventChangeNotifier? _notifier;
+    private ForegroundTracker? _foreground;
     // タイマースレッドから参照するため UI スレッドで StateChanged 時に更新する。
     private volatile bool _minimized;
 
@@ -20,6 +21,7 @@ public partial class App : Application
         var activator = new WindowActivator();
         var clock = new SystemClock();
         _notifier = new WinEventChangeNotifier();
+        var foreground = _foreground = new ForegroundTracker();
 
         MainWindow? window = null;
         var vm = new MainViewModel(enumerator, parser, activator, clock, options,
@@ -27,7 +29,8 @@ public partial class App : Application
                 ? () => window!.WindowState = WindowState.Minimized
                 : null,
             uiDispatch: a => Dispatcher.BeginInvoke(a),
-            logger: logger);
+            logger: logger,
+            previousForeground: () => foreground.LastExternal);
         window = new MainWindow(vm) { Topmost = options.Topmost };
         window.StateChanged += (_, _) => _minimized = window.WindowState == WindowState.Minimized;
         _scheduler = new UpdateScheduler(_notifier, clock, vm.OnChanged, () => _minimized, logger);
@@ -41,6 +44,7 @@ public partial class App : Application
     {
         _scheduler?.Dispose();
         _notifier?.Dispose();
+        _foreground?.Dispose();
         base.OnExit(e);
     }
 }

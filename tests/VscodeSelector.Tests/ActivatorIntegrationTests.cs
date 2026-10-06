@@ -17,6 +17,7 @@ public class ActivatorIntegrationTests
         public string GetClassName(nint h) => inner.GetClassName(h);
         public bool IsIconic(nint h) => inner.IsIconic(h);
         public void ShowWindowRestore(nint h) { Calls.Add("ShowWindow(SW_RESTORE)"); inner.ShowWindowRestore(h); }
+        public void ShowWindowMinimize(nint h) { Calls.Add("ShowWindow(SW_MINIMIZE)"); inner.ShowWindowMinimize(h); }
         public bool SetForegroundWindow(nint h) { Calls.Add("SetForegroundWindow"); return inner.SetForegroundWindow(h); }
         public void AllowSetForegroundWindowAny() { Calls.Add("AllowSetForegroundWindow"); inner.AllowSetForegroundWindowAny(); }
         public void KeybdEvent(byte vk, bool up) { Calls.Add("keybd_event"); inner.KeybdEvent(vk, up); }

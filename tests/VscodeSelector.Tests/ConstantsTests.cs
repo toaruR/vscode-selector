@@ -26,8 +26,9 @@ public class ConstantsTests
         Assert.Equal(384, Constants.WindowHeight);
         Assert.Equal(24, Constants.StatusBarHeight);
         Assert.Equal(360, Constants.ListHeight);
-        Assert.Equal(240, Constants.MinWidth);
-        Assert.Equal(120, Constants.MinHeight);
+        Assert.Equal(164, Constants.MinWidth);
+        Assert.Equal(188, Constants.MinWidthWithSideBar);
+        Assert.Equal(62, Constants.MinHeight);
     }
 
     [Fact]

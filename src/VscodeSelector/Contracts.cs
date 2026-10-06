@@ -52,6 +52,9 @@ public interface IWindowActivator
 {
     /// <summary>WindowGone: IsWindow が false、または PID/ClassName 不一致。ForegroundBlocked: 全試行失敗。例外は投げない。</summary>
     ActivationResult Activate(nint hwnd, uint expectedPid, string expectedClassName);
+
+    /// <summary>対象が有効かつ未最小化なら最小化して true。それ以外は何もせず false。例外は投げない。</summary>
+    bool TryMinimize(nint hwnd, uint expectedPid, string expectedClassName);
 }
 
 public interface IChangeNotifier : IDisposable

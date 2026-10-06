@@ -181,4 +181,37 @@ public class MainViewModelTests
         Assert.Equal("proj", f.Vm.Entries[0].DisplayName);
         Assert.Equal("solo", f.Vm.Entries[2].DisplayName);
     }
+
+    [Fact]
+    public void Activate_AlreadyForeground_MinimizesInsteadOfActivating()
+    {
+        var f = new Fixture();
+        f.Enum.Windows = [W(1, "a"), W(2, "b")];
+        f.Vm = new MainViewModel(f.Enum, new FakeParser(), f.Act, f.Clock, Defaults, () => f.MinimizeCount++,
+            previousForeground: () => 1);
+        f.Vm.OnChanged();
+
+        f.Vm.Activate(f.Vm.Entries.First(e => e.Hwnd == 1));
+        Assert.Equal(new nint[] { 1 }, f.Act.MinimizeCalls);
+        Assert.Empty(f.Act.Calls);
+
+        f.Vm.Activate(f.Vm.Entries.First(e => e.Hwnd == 2));
+        Assert.Single(f.Act.MinimizeCalls);
+        Assert.Single(f.Act.Calls);
+    }
+
+    [Fact]
+    public void Activate_PreviousForegroundAlreadyMinimized_FallsBackToActivate()
+    {
+        var f = new Fixture();
+        f.Enum.Windows = [W(1, "a")];
+        f.Vm = new MainViewModel(f.Enum, new FakeParser(), f.Act, f.Clock, Defaults, () => f.MinimizeCount++,
+            previousForeground: () => 1);
+        f.Act.MinimizeResult = false;
+        f.Vm.OnChanged();
+
+        f.Vm.Activate(f.Vm.Entries[0]);
+        Assert.Single(f.Act.MinimizeCalls);
+        Assert.Single(f.Act.Calls);
+    }
 }

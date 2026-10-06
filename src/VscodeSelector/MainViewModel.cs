@@ -17,6 +17,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly Action? _requestMinimize;
     private readonly Action<Action> _ui;
     private readonly ILogger? _logger;
+    private readonly Func<nint>? _previousForeground;
     private readonly object _gate = new();
     private readonly Dictionary<nint, int> _sequenceMap = new();
     private IDisposable? _toastTimer;
@@ -26,7 +27,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public MainViewModel(IWindowEnumerator enumerator, ITitleParser parser, IWindowActivator activator,
         IClock clock, Options options, Action? requestMinimize = null,
-        Action<Action>? uiDispatch = null, ILogger? logger = null)
+        Action<Action>? uiDispatch = null, ILogger? logger = null, Func<nint>? previousForeground = null)
     {
         _enumerator = enumerator;
         _parser = parser;
@@ -36,6 +37,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _requestMinimize = requestMinimize;
         _ui = uiDispatch ?? (a => a());
         _logger = logger;
+        _previousForeground = previousForeground;
     }
 
     public ObservableCollection<ProjectEntry> Entries { get; } = new();
@@ -98,6 +100,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public void Activate(ProjectEntry e)
     {
         var className = WindowFilter.RequiredClassName;
+        // 押す前から前面だった VS Code はトグルとして最小化する。
+        if (_previousForeground?.Invoke() == e.Hwnd && _activator.TryMinimize(e.Hwnd, e.ProcessId, className))
+            return;
         var result = _activator.Activate(e.Hwnd, e.ProcessId, className);
         switch (result)
         {

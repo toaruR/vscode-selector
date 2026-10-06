@@ -8,6 +8,7 @@ public interface IForegroundApi
     string GetClassName(nint hwnd);
     bool IsIconic(nint hwnd);
     void ShowWindowRestore(nint hwnd);
+    void ShowWindowMinimize(nint hwnd);
     bool SetForegroundWindow(nint hwnd);
     /// <summary>AllowSetForegroundWindow(ASFW_ANY)。</summary>
     void AllowSetForegroundWindowAny();

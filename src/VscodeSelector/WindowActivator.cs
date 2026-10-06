@@ -49,6 +49,25 @@ public sealed class WindowActivator : IWindowActivator
         }
     }
 
+    public bool TryMinimize(nint hwnd, uint expectedPid, string expectedClassName)
+    {
+        try
+        {
+            if (!_api.IsWindow(hwnd)
+                || _api.GetWindowProcessId(hwnd) != expectedPid
+                || _api.GetClassName(hwnd) != expectedClassName
+                || _api.IsIconic(hwnd))
+                return false;
+            _api.ShowWindowMinimize(hwnd);
+            return true;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _logger?.Error($"Minimize failed: {ex.GetType().Name}: {ex.Message}");
+            return false;
+        }
+    }
+
     private bool TryAttempt(nint hwnd, int attempt)
     {
         switch (attempt)

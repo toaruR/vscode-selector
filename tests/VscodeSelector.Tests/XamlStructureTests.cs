@@ -23,10 +23,10 @@ public class XamlStructureTests
     private static IEnumerable<XElement> Els(string name) => Load().Descendants(P + name);
 
     [Fact]
-    public void WrapPanel_Single_And_ScrollViewerAuto()
+    public void WrapPanel_Single_And_ScrollBarHidden()
     {
         Assert.Single(Els("WrapPanel"));
-        Assert.Contains(Els("ScrollViewer"), s => (string?)s.Attribute("VerticalScrollBarVisibility") == "Auto");
+        Assert.Contains(Els("ScrollViewer"), s => (string?)s.Attribute("VerticalScrollBarVisibility") == "Hidden");
     }
 
     [Fact]
@@ -50,10 +50,11 @@ public class XamlStructureTests
     }
 
     [Fact]
-    public void EmptyText_And_StatusBarHeight24()
+    public void EmptyText_And_GripBar24()
     {
         Assert.Contains(Els("TextBlock"), t => (string?)t.Attribute("Text") == "開いている VS Code がありません");
-        Assert.Contains(Els("Border"), e => (string?)e.Attribute("Height") == "24");
+        Assert.Contains(Els("Border"), e => (string?)e.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "GripBar"
+            && (string?)e.Attribute("Width") == "24");
         Assert.Equal(24, Constants.StatusBarHeight);
     }
 

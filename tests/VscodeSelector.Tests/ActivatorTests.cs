@@ -20,6 +20,7 @@ public class ActivatorTests
         public string GetClassName(nint h) => Cls;
         public bool IsIconic(nint h) => Iconic;
         public void ShowWindowRestore(nint h) => Calls.Add("ShowWindow(SW_RESTORE)");
+        public void ShowWindowMinimize(nint h) => Calls.Add("ShowWindow(SW_MINIMIZE)");
         public bool SetForegroundWindow(nint h) { Calls.Add("SetForegroundWindow"); return ++_sfw >= SucceedOnSfwCall; }
         public void AllowSetForegroundWindowAny() => Calls.Add("AllowSetForegroundWindow(ASFW_ANY)");
         public void KeybdEvent(byte vk, bool up) => Calls.Add("keybd_event(" + vk.ToString("X2") + "," + (up ? "up" : "down") + ")");
@@ -128,5 +129,24 @@ public class ActivatorTests
     {
         var (_, f) = Run(new FakeApi { Iconic = false, SucceedOnSfwCall = 1 });
         Assert.DoesNotContain("ShowWindow(SW_RESTORE)", f.Calls);
+    }
+
+    [Fact]
+    public void TryMinimize_Normal_Minimizes()
+    {
+        var f = new FakeApi();
+        Assert.True(new WindowActivator(f).TryMinimize(1, 10, "Chrome_WidgetWin_1"));
+        Assert.Equal(new[] { "ShowWindow(SW_MINIMIZE)" }, Seq(f));
+    }
+
+    [Theory]
+    [InlineData(true, true, 10u)]
+    [InlineData(false, false, 10u)]
+    [InlineData(false, true, 99u)]
+    public void TryMinimize_IconicOrGone_DoesNothing(bool iconic, bool exists, uint pid)
+    {
+        var f = new FakeApi { Iconic = iconic, Exists = exists, Pid = pid };
+        Assert.False(new WindowActivator(f).TryMinimize(1, 10, "Chrome_WidgetWin_1"));
+        Assert.Empty(Seq(f));
     }
 }
