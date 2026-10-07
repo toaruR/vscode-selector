@@ -62,7 +62,7 @@ public class XamlStructureTests
     public void Button_Dimensions_150x48_Margin6()
     {
         var btn = Els("DataTemplate").Descendants(P + "Button").Single();
-        Assert.Equal("150", (string?)btn.Attribute("Width"));
+        Assert.Equal("150", (string?)btn.Attribute("MinWidth"));
         Assert.Equal("48", (string?)btn.Attribute("Height"));
         Assert.Equal("6", (string?)btn.Attribute("Margin"));
         Assert.Equal(150, Constants.ButtonWidth);

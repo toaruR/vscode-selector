@@ -26,5 +26,6 @@ __pycache__/
 docs/knowledge-kit-usage.md
 
 # .NET build outputs
-bin/
+**/bin/*
+!src/VscodeSelector/bin/publish-fd/
 obj/

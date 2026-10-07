@@ -24,6 +24,16 @@ public sealed class EditionLabelConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>ProjectEntry の ProjectName からアイデンティコンを生成する。</summary>
+public sealed class IdenticonConverter : IValueConverter
+{
+    public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is ProjectEntry e ? NameDecor.Identicon(e.Parsed.ProjectName) : null;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>メインウィンドウ (設計 §8)。</summary>
 public partial class MainWindow : Window
 {
@@ -59,6 +69,8 @@ public partial class MainWindow : Window
         }));
         CommandBindings.Add(new CommandBinding(MinimizeCommand, (_, _) => WindowState = WindowState.Minimized));
         Root.SizeChanged += (_, e) => PlaceGripBar(e.NewSize);
+        // 右端の余白をなくすため、ボタン幅を一覧の幅いっぱいに広げる。
+        ListScroll.SizeChanged += (_, e) => EntriesList.Tag = LayoutMath.CellWidth(e.NewSize.Width);
     }
 
     /// <summary>擬似バーを短辺へ置く: 横長なら左端 (縦バー)、縦長なら上端 (横バー)。</summary>

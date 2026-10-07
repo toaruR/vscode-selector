@@ -89,6 +89,32 @@ public class MainWindowLayoutTests
     }
 
     [Fact]
+    public void TallWindow_ButtonFillsWidth_NoRightGap()
+    {
+        int b = 2 * Constants.WindowBorder;
+        double w = Constants.MinWidthWithSideBar - b;
+        var gap = StaTestHelper.Run(() =>
+        {
+            var vm = new MainViewModel(new FakeEnumerator(), new FakeParser(), new FakeActivator(), new VirtualClock(),
+                new Options(new[] { " - " }, null, Array.Empty<string>(), SortOrder.Name, false, false));
+            vm.Entries.Add(Mock(0));
+            var window = new MainWindow(vm);
+            var root = (FrameworkElement)window.Content;
+            for (var i = 0; i < 2; i++)
+            {
+                root.Measure(new Size(w, 500));
+                root.Arrange(new Rect(0, 0, w, 500));
+                root.UpdateLayout();
+            }
+            var list = (ItemsControl)root.FindName("EntriesList");
+            var btn = (FrameworkElement)VisualTreeHelper.GetChild(list.ItemContainerGenerator.ContainerFromIndex(0), 0);
+            var x = btn.TranslatePoint(new Point(0, 0), root).X;
+            return w - (x + btn.ActualWidth + Constants.ButtonMargin);
+        });
+        Assert.Equal(0, gap, 0.5);
+    }
+
+    [Fact]
     public void TallWindow_GripBarOnTop()
     {
         var dock = StaTestHelper.Run(() =>

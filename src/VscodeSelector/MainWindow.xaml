@@ -26,6 +26,7 @@
     </Window.InputBindings>
     <Window.Resources>
         <local:EditionLabelConverter x:Key="EditionLabel" />
+        <local:IdenticonConverter x:Key="Identicon" />
     </Window.Resources>
     <DockPanel x:Name="Root" LastChildFill="True">
         <!-- 短辺に置く擬似バー。向きはウィンドウの縦横比に応じて code-behind で切り替える。 -->
@@ -54,21 +55,28 @@
                 <ItemsControl x:Name="EntriesList" ItemsSource="{Binding Entries}" KeyboardNavigation.TabNavigation="Continue">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <WrapPanel />
+                            <!-- ItemWidth は右端の余白をなくすよう code-behind で一覧幅に合わせて Tag へ入れる。 -->
+                            <WrapPanel ItemWidth="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Button Width="150" Height="48" Margin="6"
+                            <Button MinWidth="150" Height="48" Margin="6"
                                     ToolTip="{Binding FullTitle}"
                                     AutomationProperties.Name="{Binding FullTitle}"
+                                    HorizontalContentAlignment="Stretch" Padding="4,0"
                                     Click="OnEntryClick">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding DisplayName}" FontWeight="Bold"
-                                               TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding Converter={StaticResource EditionLabel}}"
-                                               FontSize="11" TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
+                                <DockPanel>
+                                    <Image DockPanel.Dock="Left" Width="30" Height="30" Margin="0,0,6,0"
+                                           VerticalAlignment="Center" RenderOptions.EdgeMode="Aliased"
+                                           Source="{Binding Converter={StaticResource Identicon}}" />
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock local:NameDecor.Entry="{Binding}" FontWeight="Bold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Converter={StaticResource EditionLabel}}"
+                                                   FontSize="11" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </DockPanel>
                                 <Button.Style>
                                     <Style TargetType="Button">
                                         <Style.Triggers>

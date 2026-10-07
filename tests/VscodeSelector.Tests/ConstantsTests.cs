@@ -58,6 +58,15 @@ public class ConstantsTests
     }
 
     [Fact]
+    public void CellWidth_DistributesRemainder()
+    {
+        Assert.Equal(186, LayoutMath.CellWidth(186));
+        Assert.Equal(162, LayoutMath.CellWidth(162));
+        Assert.Equal(162, LayoutMath.CellWidth(100));
+        Assert.Equal(164, LayoutMath.CellWidth(493));
+    }
+
+    [Fact]
     public void Rows_Values()
     {
         Assert.Equal(6, LayoutMath.Rows(384));
