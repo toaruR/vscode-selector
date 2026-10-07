@@ -183,6 +183,17 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void ForkEditions_AreDetectedAndDisambiguated()
+    {
+        var f = new Fixture(Defaults with { SortOrder = SortOrder.ZOrder });
+        f.Enum.Windows = [W(1, "proj"), W(2, "proj", "Cursor.exe"), W(3, "proj", "Antigravity IDE.exe")];
+        f.Vm.OnChanged();
+        Assert.Equal(VsCodeEdition.Cursor, f.Vm.Entries[1].Edition);
+        Assert.Equal(VsCodeEdition.Antigravity, f.Vm.Entries[2].Edition);
+        Assert.Equal(["proj", "proj (Cursor)", "proj (Antigravity)"], f.Vm.Entries.Select(e => e.DisplayName).ToArray());
+    }
+
+    [Fact]
     public void Activate_AlreadyForeground_MinimizesInsteadOfActivating()
     {
         var f = new Fixture();

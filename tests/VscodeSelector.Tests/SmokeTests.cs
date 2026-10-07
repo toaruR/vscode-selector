@@ -20,12 +20,14 @@ public class SmokeTests
     }
 
     [Fact]
-    public void VsCodeEdition_HasThreeValues()
+    public void VsCodeEdition_HasFiveValues()
     {
-        Assert.Equal(3, Enum.GetValues<VsCodeEdition>().Length);
+        Assert.Equal(5, Enum.GetValues<VsCodeEdition>().Length);
         Assert.True(Enum.IsDefined(VsCodeEdition.Stable));
         Assert.True(Enum.IsDefined(VsCodeEdition.Insiders));
         Assert.True(Enum.IsDefined(VsCodeEdition.VSCodium));
+        Assert.True(Enum.IsDefined(VsCodeEdition.Cursor));
+        Assert.True(Enum.IsDefined(VsCodeEdition.Antigravity));
     }
 
     [Fact]

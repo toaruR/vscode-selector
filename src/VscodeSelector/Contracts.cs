@@ -1,6 +1,6 @@
 namespace VscodeSelector;
 
-public enum VsCodeEdition { Stable, Insiders, VSCodium }
+public enum VsCodeEdition { Stable, Insiders, VSCodium, Cursor, Antigravity }
 public enum RemoteKind { None, Wsl, Ssh, DevContainer, Codespaces, Other }
 
 public readonly record struct RawWindow(

@@ -33,6 +33,8 @@ public static class Disambiguator
                 {
                     VsCodeEdition.Insiders => " (Insiders)",
                     VsCodeEdition.VSCodium => " (VSCodium)",
+                    VsCodeEdition.Cursor => " (Cursor)",
+                    VsCodeEdition.Antigravity => " (Antigravity)",
                     _ => "",
                 };
                 labels[i] += suffix;

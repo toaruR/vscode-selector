@@ -18,6 +18,8 @@ public class TitleParserTests
     [InlineData(Dot + " main.ts - my-project - Visual Studio Code - Insiders", "my-project")]
     [InlineData("my-project - Visual Studio Code", "my-project")]
     [InlineData("日本語フォルダ - Visual Studio Code", "日本語フォルダ")]
+    [InlineData("wsl-sandbox-kit-test - Cursor", "wsl-sandbox-kit-test")]
+    [InlineData("main.ts - VscodeSelector - Antigravity IDE", "VscodeSelector")]
     public void Simple(string title, string name)
     {
         var r = Parse(title);

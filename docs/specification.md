@@ -14,15 +14,16 @@
 
 ## 1. ウィンドウ検出（列挙・フィルタ）
 
-`EnumWindows` の結果（Z オーダー順）から、次をすべて満たすトップレベルウィンドウを VS Code とみなす。
+`EnumWindows` の結果（Z オーダー順）から、次をすべて満たすトップレベルウィンドウを VS Code（派生 IDE の Cursor / Antigravity IDE を含む）とみなす。
 
 - 可視・オーナーなし・ツールウィンドウでない・タイトルが空でない
 - DWM で cloak されていない（別仮想デスクトップ等）
 - クラス名が `Chrome_WidgetWin_1`
 - exe 名が `Code.exe` / `Code - Insiders.exe` / `VSCodium.exe`、または設定 `extraProcessNames` に一致（拡張子あり/なし両方可、大小文字無視）
-- `OpenProcess` に失敗した場合（管理者権限で動く VS Code 等）は、タイトル末尾がアプリ名（`Visual Studio Code` / `Visual Studio Code - Insiders` / `VSCodium` / `Code - OSS`）なら採用し、ログに 1 行記録する
+- `Cursor.exe` / `Antigravity IDE.exe` は、タイトル末尾が ` - Cursor` / ` - Antigravity IDE`（プロジェクトを開いたエディタ）のものだけ採用する。Cursor は同じプロセスがエージェント画面（`Cursor` / `Cursor Agents`）も出し、ウィンドウクラス・AppUserModelID でも区別できないためタイトルで判別する。プロジェクト未オープンの空ウィンドウも除外される。`Antigravity.exe`（エージェントアプリ側）は対象外
+- `OpenProcess` に失敗した場合（管理者権限で動く VS Code 等）は、タイトル末尾がアプリ名（`Visual Studio Code` / `Visual Studio Code - Insiders` / `VSCodium` / `Code - OSS` / `Cursor` / `Antigravity IDE`）なら採用し、ログに 1 行記録する
 
-エディション（Stable / Insiders / VSCodium）は exe 名から判定する。
+エディション（Stable / Insiders / VSCodium / Cursor / Antigravity）は exe 名から判定し、ボタン 2 行目に小文字で表示する。
 
 ## 2. タイトル解析
 
@@ -44,7 +45,7 @@
 表示名が重複する場合、次の順で区別する。
 
 1. リモートラベルがあれば ` [ラベル]` を付ける
-2. まだ重複していれば ` (Insiders)` / ` (VSCodium)` を付ける（Stable は付けない）
+2. まだ重複していれば ` (Insiders)` / ` (VSCodium)` / ` (Cursor)` / ` (Antigravity)` を付ける（Stable は付けない）
 3. まだ重複していれば HWND 昇順で連番を振り、2 番目以降に ` #N` を付ける。連番は HWND ごとに保持し、ウィンドウが閉じられるまで変わらない
 
 ## 4. 並び順と更新
@@ -66,6 +67,8 @@
 
 - 枠なしウィンドウ（タイトルバーなし、1px のグレー枠、リサイズ可、最大化不可）。既定サイズは 520×384
 - **擬似バー**（幅/高さ 24）を短辺に置く。横長なら左端の縦バー、縦長なら上端の横バーに切り替わる。バーをドラッグするとウィンドウを移動でき、バー上の ✕ ボタンで終了する
+- 終了時に位置とサイズ（最小化中なら最小化前のもの）を `%APPDATA%\VsCodeSelector\window.json` に保存し、次回起動時に復元する。保存位置が現在の画面と 40×40 以上重ならない（モニタを外した等）場合や読み込みに失敗した場合は、既定の位置とサイズで起動する
+- アイコン: 青地に白いタイル 4 枚、うち 1 枚が黄色のにっこり顔で、カーソルが乗っている（exe・タスクバー共通）。生成元は `tools/make_icon.py`
 - 最小サイズはボタン 1 個分: 縦長時 164×62、横長時（左バー分を足して）幅 188
 - ボタン（150×48、余白 6）を折り返して並べ、上段にプロジェクト名（太字）、下段にエディションとリモート種別（小文字、例 `stable / wsl: ubuntu`）を表示する。ツールチップはタイトル全文。最小化中のウィンドウは灰色文字
 - スクロールバーは表示しない（ホイール等でスクロールは可能）

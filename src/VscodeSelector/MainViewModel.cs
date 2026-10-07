@@ -152,6 +152,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (n.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) n = n[..^4];
         if (n.Equals("Code - Insiders", StringComparison.OrdinalIgnoreCase)) return VsCodeEdition.Insiders;
         if (n.Equals("VSCodium", StringComparison.OrdinalIgnoreCase)) return VsCodeEdition.VSCodium;
+        if (n.Equals("Cursor", StringComparison.OrdinalIgnoreCase)) return VsCodeEdition.Cursor;
+        if (n.Equals("Antigravity IDE", StringComparison.OrdinalIgnoreCase)) return VsCodeEdition.Antigravity;
         return VsCodeEdition.Stable;
     }
 }

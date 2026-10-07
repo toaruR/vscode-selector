@@ -29,5 +29,5 @@ internal static class Constants
     public const int DetectLatencyMax = PollIntervalMs + DebounceMs + EnumBudgetMs;
     public const int DetectLatencyMaxHidden = PollIntervalHiddenMs + DebounceMs + EnumBudgetMs;
 
-    public const string AppRe = @"\s-\s(Visual Studio Code(?: - Insiders)?|VSCodium|Code - OSS)$";
+    public const string AppRe = @"\s-\s(Visual Studio Code(?: - Insiders)?|VSCodium|Code - OSS|Cursor|Antigravity IDE)$";
 }

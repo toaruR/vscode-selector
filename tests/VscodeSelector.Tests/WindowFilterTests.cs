@@ -68,6 +68,21 @@ public class WindowFilterTests
     public void ExtraProcessNames_DoNotAffectOthers()
         => Assert.Null(WindowFilter.Evaluate(Ok(exe: "chrome.exe"), ["slack"]));
 
+    [Theory]
+    [InlineData("Cursor.exe", "proj - Cursor")]
+    [InlineData("cursor.exe", "a.cs - proj [WSL: Ubuntu] - Cursor")]
+    [InlineData("Antigravity IDE.exe", "proj - Antigravity IDE")]
+    public void ForkExe_ProjectTitle_Accepted(string exe, string title)
+        => Assert.NotNull(WindowFilter.Evaluate(Ok(exe: exe, title: title), None));
+
+    [Theory]
+    [InlineData("Cursor.exe", "Cursor")]
+    [InlineData("Cursor.exe", "Cursor Agents")]
+    [InlineData("Antigravity IDE.exe", "Antigravity IDE")]
+    [InlineData("Antigravity.exe", "proj - Antigravity IDE")]
+    public void ForkExe_NonProjectWindowOrAgentApp_Excluded(string exe, string title)
+        => Assert.Null(WindowFilter.Evaluate(Ok(exe: exe, title: title), None));
+
     [Fact]
     public void OpenProcessFailed_AppReMatch_AcceptedWithEmptyNameAndOneLog()
     {

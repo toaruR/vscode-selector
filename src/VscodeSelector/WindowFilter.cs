@@ -15,6 +15,8 @@ public static class WindowFilter
     public const string RequiredClassName = "Chrome_WidgetWin_1";
 
     private static readonly string[] StandardExeNames = ["Code.exe", "Code - Insiders.exe", "VSCodium.exe"];
+    // VS Code 派生 IDE。同じ exe がエージェント画面等も出すため、タイトルが「… - アプリ名」のウィンドウだけ採用する。
+    private static readonly string[] ForkExeNames = ["Cursor.exe", "Antigravity IDE.exe"];
     private static readonly Regex AppRe = new(Constants.AppRe, RegexOptions.CultureInvariant);
 
     /// <summary>採用なら RawWindow、除外なら null。OpenProcess 失敗フォールバック時のみ log を 1 行呼ぶ。</summary>
@@ -34,11 +36,22 @@ public static class WindowFilter
         }
         else
         {
-            if (!IsAllowedExe(c.ProcessName, extraProcessNames)) return null;
+            if (IsForkExe(c.ProcessName))
+            {
+                if (!AppRe.IsMatch(c.Title)) return null;
+            }
+            else if (!IsAllowedExe(c.ProcessName, extraProcessNames)) return null;
             processName = c.ProcessName;
         }
 
         return new RawWindow(c.Hwnd, c.ProcessId, processName, c.ClassName, c.Title, c.IsMinimized);
+    }
+
+    private static bool IsForkExe(string name)
+    {
+        foreach (var s in ForkExeNames)
+            if (string.Equals(name, s, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
     }
 
     private static bool IsAllowedExe(string name, IReadOnlyCollection<string> extra)

@@ -34,10 +34,12 @@ public class ConstantsTests
     [Fact]
     public void AppRe_IsSameStringAsDesignP1()
     {
-        Assert.Equal(@"\s-\s(Visual Studio Code(?: - Insiders)?|VSCodium|Code - OSS)$", Constants.AppRe);
+        Assert.Equal(@"\s-\s(Visual Studio Code(?: - Insiders)?|VSCodium|Code - OSS|Cursor|Antigravity IDE)$", Constants.AppRe);
         var re = new Regex(Constants.AppRe);
         Assert.Matches(re, "a - Visual Studio Code - Insiders");
         Assert.Matches(re, "a - VSCodium");
+        Assert.Matches(re, "a - Cursor");
+        Assert.Matches(re, "a - Antigravity IDE");
         Assert.DoesNotMatch(re, "a - Notepad");
     }
 
