@@ -33,11 +33,35 @@ public partial class App : Application
             previousForeground: () => foreground.LastExternal);
         window = new MainWindow(vm) { Topmost = options.Topmost };
         window.StateChanged += (_, _) => _minimized = window.WindowState == WindowState.Minimized;
+        RestorePlacement(window, logger);
+        window.Closing += (_, _) => WindowPlacementStore.Save(WindowPlacementStore.DefaultPath,
+            window.WindowState == WindowState.Normal
+                ? new Rect(window.Left, window.Top, window.ActualWidth, window.ActualHeight)
+                : window.RestoreBounds,
+            logger);
         _scheduler = new UpdateScheduler(_notifier, clock, vm.OnChanged, () => _minimized, logger);
         MainWindow = window;
         window.Show();
         vm.OnChanged();
         _scheduler.Start();
+    }
+
+    /// <summary>前回終了時の位置とサイズを復元する。画面外になる場合は既定位置のまま。</summary>
+    private static void RestorePlacement(Window window, ILogger logger)
+    {
+        if (WindowPlacementStore.Load(WindowPlacementStore.DefaultPath, logger) is not { } r) return;
+        var screen = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+        if (!WindowPlacementStore.IsVisible(r, screen))
+        {
+            logger.Info("saved window placement is off-screen; using default");
+            return;
+        }
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
+        window.Left = r.Left;
+        window.Top = r.Top;
+        window.Width = r.Width;
+        window.Height = r.Height;
     }
 
     protected override void OnExit(ExitEventArgs e)

@@ -36,6 +36,10 @@ public partial class MainWindow : Window
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongW")] private static extern int GetWindowLong(nint h, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongW")] private static extern int SetWindowLong(nint h, int index, int value);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(nint h, nint after, int x, int y, int cx, int cy, uint flags);
+
+    // SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED
+    private const uint SwpFrameChanged = 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020;
 
     private readonly MainViewModel _vm;
 
@@ -80,6 +84,8 @@ public partial class MainWindow : Window
         // 最大化不要: キャプションのダブルクリックや Win+↑ で最大化されないようにする。
         nint hwnd = new WindowInteropHelper(this).Handle;
         SetWindowLong(hwnd, GwlStyle, GetWindowLong(hwnd, GwlStyle) & ~WsMaximizeBox);
+        // スタイル変更後にフレームを再計算しないと、初回アクティブ化で古いキャプションボタンが描かれ残る。
+        SetWindowPos(hwnd, 0, 0, 0, 0, 0, SwpFrameChanged);
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
