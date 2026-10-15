@@ -2,9 +2,11 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 
 namespace VscodeSelector;
 
@@ -87,6 +89,16 @@ public partial class MainWindow : Window
 
     private void OnGripMouseDown(object sender, MouseButtonEventArgs e)
     {
+        if (e.ButtonState == MouseButtonState.Pressed) DragMove();
+    }
+
+    /// <summary>一覧の余白でのドラッグ移動。ScrollViewer がクリックを処理済みにするため Preview で拾い、ボタン上は除く。</summary>
+    private void OnContentMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        for (var d = e.OriginalSource as DependencyObject; d != null && d != sender; d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
+        {
+            if (d is ButtonBase) return;
+        }
         if (e.ButtonState == MouseButtonState.Pressed) DragMove();
     }
 

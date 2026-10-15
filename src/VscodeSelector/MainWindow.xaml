@@ -50,7 +50,8 @@
                 </Button.Template>
             </Button>
         </Border>
-        <Grid>
+        <!-- 余白もドラッグで移動できるよう Background で当たり判定を持たせる。 -->
+        <Grid Background="Transparent" PreviewMouseLeftButtonDown="OnContentMouseDown">
             <ScrollViewer x:Name="ListScroll" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl x:Name="EntriesList" ItemsSource="{Binding Entries}" KeyboardNavigation.TabNavigation="Continue">
                     <ItemsControl.ItemsPanel>
