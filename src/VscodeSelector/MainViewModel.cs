@@ -142,8 +142,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ShowToast(errors.Count == 0 ? FolderSetupDoneMessage : FolderSetupFailedMessage);
             return;
         }
-        // リモートの rootPath はリモート側のパスで、ローカルの同名パスと取り違えるため開かない。
-        if (path.Length == 0 || e.Parsed.Remote != RemoteKind.None)
+        // リモートの rootPath はリモート側のパス。WSL は \\wsl.localhost 経由で開け、それ以外はローカルの同名パスと取り違えるため開かない。
+        path = e.Parsed.Remote switch
+        {
+            _ when path.Length == 0 => null,
+            RemoteKind.None => path,
+            RemoteKind.Wsl when WslPath.Distro(e.Parsed.RemoteLabel) is { } distro
+                => WslPath.ToWindows(distro, path, d => WslPath.Home(d, _logger)),
+            _ => null,
+        };
+        if (path is null)
         {
             ShowToast(FolderUnavailableMessage);
             return;
