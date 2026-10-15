@@ -130,4 +130,39 @@ public class MainWindowLayoutTests
         });
         Assert.Equal(Dock.Top, dock);
     }
+
+    [Fact]
+    public void EntryAdded_Overflow_GrowsWindow()
+    {
+        var (before, after) = StaTestHelper.Run(() =>
+        {
+            var vm = new MainViewModel(new FakeEnumerator(), new FakeParser(), new FakeActivator(), new VirtualClock(),
+                new Options(new[] { " - " }, null, Array.Empty<string>(), SortOrder.Name, false, false));
+            // 横長 1 行に 2 列分。
+            var window = new MainWindow(vm)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = 0, Top = 0,
+                Width = Constants.MinWidthWithSideBar + Constants.ButtonCellWidth, Height = Constants.MinHeight,
+                ShowActivated = false,
+            };
+            window.Show();
+            for (var i = 0; i < 2; i++) vm.Entries.Add(Mock(i));
+            Pump();
+            var w0 = window.ActualWidth;
+            vm.Entries.Add(Mock(2));
+            Pump();
+            var w1 = window.ActualWidth;
+            window.Close();
+            return (w0, w1);
+        });
+        Assert.Equal(before + Constants.ButtonCellWidth, after, 0.5);
+    }
+
+    private static void Pump()
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.ContextIdle, () => frame.Continue = false);
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
+    }
 }

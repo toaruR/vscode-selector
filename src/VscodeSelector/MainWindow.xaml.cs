@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -7,6 +8,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace VscodeSelector;
 
@@ -73,6 +75,12 @@ public partial class MainWindow : Window
         Root.SizeChanged += (_, e) => PlaceGripBar(e.NewSize);
         // 右端の余白をなくすため、ボタン幅を一覧の幅いっぱいに広げる。
         ListScroll.SizeChanged += (_, e) => EntriesList.Tag = LayoutMath.CellWidth(e.NewSize.Width);
+        // エディタが増えて収まらなくなった時もリサイズ後と同様に広げる。最小化中は復元時に行う。
+        _vm.Entries.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == NotifyCollectionChangedAction.Add) ScheduleGrowToFit();
+        };
+        StateChanged += (_, _) => ScheduleGrowToFit();
     }
 
     /// <summary>擬似バーを短辺へ置く: 横長なら左端 (縦バー)、縦長なら上端 (横バー)。</summary>
@@ -110,6 +118,40 @@ public partial class MainWindow : Window
         SetWindowLong(hwnd, GwlStyle, GetWindowLong(hwnd, GwlStyle) & ~WsMaximizeBox);
         // スタイル変更後にフレームを再計算しないと、初回アクティブ化で古いキャプションボタンが描かれ残る。
         SetWindowPos(hwnd, 0, 0, 0, 0, 0, SwpFrameChanged);
+        HwndSource.FromHwnd(hwnd).AddHook(WndProc);
+    }
+
+    private const int WmSizing = 0x0214;
+    private const int WmExitSizeMove = 0x0232;
+    private bool _resizing;
+
+    private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
+    {
+        if (msg == WmSizing) _resizing = true;
+        else if (msg == WmExitSizeMove && _resizing)
+        {
+            _resizing = false;
+            ScheduleGrowToFit();
+        }
+        return 0;
+    }
+
+    /// <summary>確定サイズ・追加ボタンのレイアウトが済んでから測るため Loaded 優先度で後回しにする。</summary>
+    private void ScheduleGrowToFit()
+        => Dispatcher.BeginInvoke(() =>
+        {
+            if (WindowState == WindowState.Normal && IsVisible) GrowToFitEntries();
+        }, DispatcherPriority.Loaded);
+
+    /// <summary>ボタンが一覧に収まらなければ、長辺方向へウィンドウを広げる (画面端まで)。</summary>
+    private void GrowToFitEntries()
+    {
+        var list = new Size(ListScroll.ActualWidth, ListScroll.ActualHeight);
+        var fit = LayoutMath.FitListSize(list, _vm.Entries.Count);
+        double right = SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth;
+        double bottom = SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight;
+        if (fit.Width > list.Width) Width = Math.Min(ActualWidth + fit.Width - list.Width, right - Left);
+        if (fit.Height > list.Height) Height = Math.Min(ActualHeight + fit.Height - list.Height, bottom - Top);
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();

@@ -74,6 +74,18 @@ public class ConstantsTests
     }
 
     [Fact]
+    public void FitListSize_GrowsLongSideOnly()
+    {
+        // 横長 1 行に 8 個: 行数を保って幅を 8 列分へ。
+        Assert.Equal(new System.Windows.Size(8 * 162, 60), LayoutMath.FitListSize(new System.Windows.Size(500, 60), 8));
+        // 縦長 2 列に 15 個: 列数を保って高さを 8 行分へ。
+        Assert.Equal(new System.Windows.Size(330, 480), LayoutMath.FitListSize(new System.Windows.Size(330, 400), 15));
+        // 収まっている/空ならそのまま。
+        Assert.Equal(new System.Windows.Size(520, 360), LayoutMath.FitListSize(new System.Windows.Size(520, 360), 3));
+        Assert.Equal(new System.Windows.Size(100, 50), LayoutMath.FitListSize(new System.Windows.Size(100, 50), 0));
+    }
+
+    [Fact]
     public void RetryMaxWait_Is150()
         => Assert.Equal(150, (Constants.ActivateMaxAttempts - 1) * Constants.ActivateRetryDelayMs);
 
