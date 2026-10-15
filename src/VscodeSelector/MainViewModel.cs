@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 
 namespace VscodeSelector;
 
@@ -8,6 +10,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     public const string EnumerationWarning = "ウィンドウ一覧の取得に失敗しました。前回の一覧を表示しています。";
     public const string ForegroundBlockedMessage = "前面に出せませんでした。タスクバーから切り替えてください。";
+    public const string FolderUnavailableMessage = "このウィンドウはローカルのフォルダを開いていません。";
+    public const string FolderSetupDoneMessage = "設定しました。タイトルが更新されたらもう一度 Shift+クリックしてください。";
+    public const string FolderSetupFailedMessage = "settings.json を更新できませんでした。ログを確認してください。";
 
     private readonly IWindowEnumerator _enumerator;
     private readonly ITitleParser _parser;
@@ -120,6 +125,44 @@ public sealed class MainViewModel : INotifyPropertyChanged
             case ActivationResult.ForegroundBlocked:
                 _ui(() => ShowToast(ForegroundBlockedMessage));
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Shift+クリック: プロジェクトのフォルダをエクスプローラーで開く (ワークスペースはファイルを選択表示)。
+    /// タイトルにパス表示が無ければ confirmSetup で確認し、エディタの settings.json に追加する。UI スレッドから呼ぶ。
+    /// </summary>
+    public void OpenFolder(ProjectEntry e, Func<bool> confirmSetup)
+    {
+        var path = e.Parsed.FolderPath;
+        if (path is null)
+        {
+            if (!confirmSetup()) return;
+            var errors = TitlePathSettings.Install(TitlePathSettings.SettingsFiles(e.Edition), _logger);
+            ShowToast(errors.Count == 0 ? FolderSetupDoneMessage : FolderSetupFailedMessage);
+            return;
+        }
+        // リモートの rootPath はリモート側のパスで、ローカルの同名パスと取り違えるため開かない。
+        if (path.Length == 0 || e.Parsed.Remote != RemoteKind.None)
+        {
+            ShowToast(FolderUnavailableMessage);
+            return;
+        }
+        string? args = Directory.Exists(path) ? $"\"{path}\""
+            : File.Exists(path) ? $"/select,\"{path}\""
+            : null;
+        if (args is null)
+        {
+            ShowToast(FolderUnavailableMessage);
+            return;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", args) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _logger?.Warn($"explorer start failed ({path}): {ex.Message}");
         }
     }
 

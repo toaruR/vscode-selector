@@ -158,6 +158,14 @@ public partial class MainWindow : Window
 
     private void OnEntryClick(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { DataContext: ProjectEntry pe }) _vm.Activate(pe);
+        if (sender is not Button { DataContext: ProjectEntry pe }) return;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            _vm.OpenFolder(pe, () => MessageBox.Show(this,
+                $"{pe.Edition} のウィンドウタイトルにフォルダのパスがありません。\n" +
+                "settings.json の window.title にパス表示 " + Constants.PathMarker + " を追加しますか？\n" +
+                "(変更前のファイルは .bak として保存します)",
+                Title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes);
+        else
+            _vm.Activate(pe);
     }
 }

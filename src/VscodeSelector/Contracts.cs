@@ -10,7 +10,11 @@ public readonly record struct RawWindow(
 public sealed record ParsedTitle(
     string ProjectName,
     RemoteKind Remote, string? RemoteLabel,
-    bool IsNoFolder, bool IsWorkspaceFile);
+    bool IsNoFolder, bool IsWorkspaceFile)
+{
+    /// <summary>タイトル中のパス表示 ⟨…⟩ の中身。null: パス表示なし、"": フォルダ未オープン。</summary>
+    public string? FolderPath { get; init; }
+}
 
 public sealed record ProjectEntry(
     nint Hwnd, uint ProcessId, VsCodeEdition Edition,

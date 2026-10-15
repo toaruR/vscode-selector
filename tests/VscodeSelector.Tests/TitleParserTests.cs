@@ -147,4 +147,16 @@ public class TitleParserTests
         Assert.True(e.IsWorkspaceFile);
         Assert.Equal(te, $"x - {e.ProjectName} (Workspace) - Visual Studio Code");
     }
+
+    [Theory]
+    [InlineData(@"main.ts - my-project ⟨D:\a - b\my-project⟩ - Visual Studio Code", "my-project", @"D:\a - b\my-project")]
+    [InlineData("a.ts - app [WSL: Ubuntu] ⟨/home/u/app⟩ - Cursor", "app", "/home/u/app")]
+    [InlineData("Welcome ⟨⟩ - Antigravity IDE", "(No Folder)", "")]
+    [InlineData("main.ts - my-project - Visual Studio Code", "my-project", null)]
+    public void PathMarker(string title, string name, string? path)
+    {
+        var r = Parse(title);
+        Assert.Equal(name, r.ProjectName);
+        Assert.Equal(path, r.FolderPath);
+    }
 }

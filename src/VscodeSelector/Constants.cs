@@ -29,5 +29,10 @@ internal static class Constants
     public const int DetectLatencyMax = PollIntervalMs + DebounceMs + EnumBudgetMs;
     public const int DetectLatencyMaxHidden = PollIntervalHiddenMs + DebounceMs + EnumBudgetMs;
 
+    // エディタの window.title に差し込むパス表示 (TitlePathSettings) とその括弧。
+    public const string PathMarkerOpen = "⟨";
+    public const string PathMarkerClose = "⟩";
+    public const string PathMarker = PathMarkerOpen + "${rootPath}" + PathMarkerClose;
+
     public const string AppRe = @"\s-\s(Visual Studio Code(?: - Insiders)?|VSCodium|Code - OSS|Cursor|Antigravity IDE)$";
 }

@@ -12,18 +12,27 @@ public sealed class TitleParser : ITitleParser
     private static readonly Regex RemoteRe = new(@"\s\[([^\]]+)\]$", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex WorkspaceRe = new(@"\s\(Workspace\)$", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex NoFolderRe = new(@"^(Welcome|Get Started|Settings|Extension: .*)$", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex PathMarkerRe = new(@"\s?" + Constants.PathMarkerOpen + "([^" + Constants.PathMarkerOpen + Constants.PathMarkerClose + "]*)" + Constants.PathMarkerClose, RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex AppNameOnlyRe = new(@"^(Visual Studio Code(?: - Insiders)?|VSCodium|Code - OSS)$", RegexOptions.CultureInvariant, RegexTimeout);
 
     public ParsedTitle Parse(string title, Options options)
     {
         title ??= "";
+        string? path = null;
         try
         {
-            return ParseCore(title, options) ?? Fallback(title);
+            // パス表示 ⟨${rootPath}⟩ は区切り文字を含みうるため、解析前に取り除く。
+            var pm = PathMarkerRe.Match(title);
+            if (pm.Success)
+            {
+                path = pm.Groups[1].Value.Trim();
+                title = title.Remove(pm.Index, pm.Length);
+            }
+            return (ParseCore(title, options) ?? Fallback(title)) with { FolderPath = path };
         }
         catch (Exception)
         {
-            return Fallback(title);
+            return Fallback(title) with { FolderPath = path };
         }
     }
 
