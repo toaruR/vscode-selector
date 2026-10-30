@@ -34,11 +34,15 @@ public partial class App : Application
         window = new MainWindow(vm) { Topmost = options.Topmost };
         window.StateChanged += (_, _) => _minimized = window.WindowState == WindowState.Minimized;
         RestorePlacement(window, logger);
-        window.Closing += (_, _) => WindowPlacementStore.Save(WindowPlacementStore.DefaultPath,
+        // 終了時だけだとシャットダウンや強制終了で失われるため、移動・リサイズ完了時にも保存する。
+        void SavePlacement() => WindowPlacementStore.Save(WindowPlacementStore.DefaultPath,
             window.WindowState == WindowState.Normal
                 ? new Rect(window.Left, window.Top, window.ActualWidth, window.ActualHeight)
                 : window.RestoreBounds,
             logger);
+        window.Closing += (_, _) => SavePlacement();
+        window.MoveSizeEnded += SavePlacement;
+        SessionEnding += (_, _) => SavePlacement();
         _scheduler = new UpdateScheduler(_notifier, clock, vm.OnChanged, () => _minimized, logger);
         MainWindow = window;
         window.Show();

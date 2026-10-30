@@ -125,13 +125,21 @@ public partial class MainWindow : Window
     private const int WmExitSizeMove = 0x0232;
     private bool _resizing;
 
+    /// <summary>ドラッグ移動・リサイズの完了後 (自動拡大の後) に発火する。</summary>
+    public event Action? MoveSizeEnded;
+
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
         if (msg == WmSizing) _resizing = true;
-        else if (msg == WmExitSizeMove && _resizing)
+        else if (msg == WmExitSizeMove)
         {
-            _resizing = false;
-            ScheduleGrowToFit();
+            if (_resizing)
+            {
+                _resizing = false;
+                ScheduleGrowToFit();
+            }
+            // 自動拡大 (Loaded 優先度) の結果を含めるため、それより低い優先度で通知する。
+            Dispatcher.BeginInvoke(() => MoveSizeEnded?.Invoke(), DispatcherPriority.Background);
         }
         return 0;
     }
