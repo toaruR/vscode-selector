@@ -100,14 +100,45 @@ public partial class MainWindow : Window
         if (e.ButtonState == MouseButtonState.Pressed) DragMove();
     }
 
-    /// <summary>一覧の余白でのドラッグ移動。ScrollViewer がクリックを処理済みにするため Preview で拾い、ボタン上は除く。</summary>
+    /// <summary>ボタン上で押した位置。しきい値以上動いたらドラッグ移動に切り替える (クリックと両立させるため)。</summary>
+    private Point? _buttonDragStart;
+    private bool _suppressClick;
+
+    /// <summary>一覧の余白でのドラッグ移動。ScrollViewer がクリックを処理済みにするため Preview で拾う。ボタン上は移動開始を保留する。</summary>
     private void OnContentMouseDown(object sender, MouseButtonEventArgs e)
     {
+        _buttonDragStart = null;
+        _suppressClick = false;
+        if (e.ButtonState != MouseButtonState.Pressed) return;
         for (var d = e.OriginalSource as DependencyObject; d != null && d != sender; d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
         {
-            if (d is ButtonBase) return;
+            if (d is ButtonBase)
+            {
+                _buttonDragStart = e.GetPosition(this);
+                return;
+            }
         }
-        if (e.ButtonState == MouseButtonState.Pressed) DragMove();
+        DragMove();
+    }
+
+    private void OnContentMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_buttonDragStart is not { } start) return;
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            _buttonDragStart = null;
+            return;
+        }
+        var delta = e.GetPosition(this) - start;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        _buttonDragStart = null;
+        _suppressClick = true;
+        // ボタンがマウスをキャプチャしたままだと DragMove のシステム移動ループが始まらない。
+        Mouse.Capture(null);
+        DragMove();
+        // 後続のキー操作 (Space) によるクリックまで抑止しないよう、溜まった入力の処理後に解除する。
+        Dispatcher.BeginInvoke(() => _suppressClick = false, DispatcherPriority.Background);
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -167,6 +198,12 @@ public partial class MainWindow : Window
     private void OnEntryClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { DataContext: ProjectEntry pe }) return;
+        // ボタンからドラッグ移動した直後は、離した位置がボタン上でもクリック扱いにしない。
+        if (_suppressClick)
+        {
+            _suppressClick = false;
+            return;
+        }
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
             _vm.OpenFolder(pe, () => MessageBox.Show(this,
                 $"{pe.Edition} のウィンドウタイトルにフォルダのパスがありません。\n" +
