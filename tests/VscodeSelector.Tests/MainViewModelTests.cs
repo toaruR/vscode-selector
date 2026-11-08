@@ -225,4 +225,37 @@ public class MainViewModelTests
         Assert.Single(f.Act.MinimizeCalls);
         Assert.Single(f.Act.Calls);
     }
+
+    [Fact]
+    public void RefreshActive_UpdatesActiveHwnd_AndRaisesOnlyOnChange()
+    {
+        var f = new Fixture();
+        nint fg = 1;
+        f.Vm = new MainViewModel(f.Enum, new FakeParser(), f.Act, f.Clock, Defaults, previousForeground: () => fg);
+        var raised = 0;
+        f.Vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(MainViewModel.ActiveHwnd)) raised++; };
+
+        f.Vm.RefreshActive();
+        f.Vm.RefreshActive();
+        Assert.Equal((nint)1, f.Vm.ActiveHwnd);
+        Assert.Equal(1, raised);
+
+        fg = 2;
+        f.Vm.RefreshActive();
+        Assert.Equal((nint)2, f.Vm.ActiveHwnd);
+        Assert.Equal(2, raised);
+    }
+
+    [Theory]
+    [InlineData(1, false, 1, true)]
+    [InlineData(1, false, 2, false)]
+    [InlineData(1, true, 1, false)]
+    [InlineData(1, false, 0, false)]
+    public void IsActiveEntryConverter_MatchesUnminimizedActiveHwnd(long hwnd, bool minimized, long active, bool expected)
+    {
+        var parsed = new ParsedTitle("p", RemoteKind.None, null, false, false);
+        var e = new ProjectEntry((nint)hwnd, 1, VsCodeEdition.Stable, "p", "p", parsed, minimized);
+        var r = new IsActiveEntryConverter().Convert([e, (nint)active], typeof(bool), null!, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal(expected, r);
+    }
 }

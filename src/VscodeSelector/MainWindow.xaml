@@ -27,6 +27,7 @@
     <Window.Resources>
         <local:EditionLabelConverter x:Key="EditionLabel" />
         <local:IdenticonConverter x:Key="Identicon" />
+        <local:IsActiveEntryConverter x:Key="IsActiveEntry" />
     </Window.Resources>
     <DockPanel x:Name="Root" LastChildFill="True">
         <!-- 短辺に置く擬似バー。向きはウィンドウの縦横比に応じて code-behind で切り替える。 -->
@@ -84,6 +85,19 @@
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsMinimized}" Value="True">
                                                 <Setter Property="Foreground" Value="Gray" />
+                                            </DataTrigger>
+                                            <!-- 前面にある VS Code のボタンを強調する。 -->
+                                            <DataTrigger Value="True">
+                                                <DataTrigger.Binding>
+                                                    <MultiBinding Converter="{StaticResource IsActiveEntry}">
+                                                        <Binding />
+                                                        <Binding Path="DataContext.ActiveHwnd"
+                                                                 RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                    </MultiBinding>
+                                                </DataTrigger.Binding>
+                                                <Setter Property="Background" Value="#FFCCE4F7" />
+                                                <Setter Property="BorderBrush" Value="#FF0078D4" />
+                                                <Setter Property="BorderThickness" Value="2" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

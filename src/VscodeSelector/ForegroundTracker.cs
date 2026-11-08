@@ -35,11 +35,16 @@ internal sealed class ForegroundTracker : IDisposable
     /// <summary>自プロセス以外で最後に前面になったウィンドウ。未記録なら 0。</summary>
     public nint LastExternal { get; private set; }
 
+    /// <summary>LastExternal が変わったとき UI スレッドで発火する。</summary>
+    public event Action? Changed;
+
     private void Record(nint hwnd)
     {
         if (hwnd == 0) return;
         GetWindowThreadProcessId(hwnd, out uint pid);
-        if (pid != SelfPid) LastExternal = hwnd;
+        if (pid == SelfPid || hwnd == LastExternal) return;
+        LastExternal = hwnd;
+        Changed?.Invoke();
     }
 
     public void Dispose()

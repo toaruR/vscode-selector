@@ -38,6 +38,16 @@ public sealed class IdenticonConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>[ProjectEntry, ActiveHwnd] から、前面にある未最小化のウィンドウかを返す。</summary>
+public sealed class IsActiveEntryConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        => values is [ProjectEntry e, nint active] && active != 0 && e.Hwnd == active && !e.IsMinimized;
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>メインウィンドウ (設計 §8)。</summary>
 public partial class MainWindow : Window
 {

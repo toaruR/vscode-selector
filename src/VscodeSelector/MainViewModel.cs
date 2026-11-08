@@ -50,7 +50,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>ステータスバー表示。トースト優先、次に警告、無ければ空。</summary>
     public string StatusText => _toast ?? _warning ?? "";
 
+    /// <summary>強調表示する前面 VS Code の Hwnd (押す前の前面ウィンドウ)。無ければ 0。</summary>
+    public nint ActiveHwnd { get; private set; }
+
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>前面ウィンドウの変化時に UI スレッドから呼ぶ。</summary>
+    public void RefreshActive()
+    {
+        var hwnd = _previousForeground?.Invoke() ?? 0;
+        if (hwnd == ActiveHwnd) return;
+        ActiveHwnd = hwnd;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ActiveHwnd)));
+    }
 
     /// <summary>背景スレッドから呼ばれる。例外を投げない。</summary>
     public void OnChanged()

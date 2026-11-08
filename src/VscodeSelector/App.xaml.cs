@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 
 namespace VscodeSelector;
@@ -8,12 +9,20 @@ public partial class App : Application
     private UpdateScheduler? _scheduler;
     private WinEventChangeNotifier? _notifier;
     private ForegroundTracker? _foreground;
+    private SingleInstance? _instance;
     // タイマースレッドから参照するため UI スレッドで StateChanged 時に更新する。
     private volatile bool _minimized;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // 既に起動済みなら既存ウィンドウを前面に出させて終了する。前面化を許可してから通知する。
+        _instance = SingleInstance.TryAcquire(beforeSignal: () => AllowSetForegroundWindow(AsfwAny));
+        if (_instance is null)
+        {
+            Shutdown();
+            return;
+        }
         var logger = new FileLogger(FileLogger.DefaultDirectory);
         var options = OptionsLoader.Load(OptionsLoader.DefaultPath, logger);
         var enumerator = new Win32WindowEnumerator(options.ExtraProcessNames, s => logger.Debug(s));
@@ -32,6 +41,8 @@ public partial class App : Application
             logger: logger,
             previousForeground: () => foreground.LastExternal);
         window = new MainWindow(vm) { Topmost = options.Topmost };
+        foreground.Changed += vm.RefreshActive;
+        vm.RefreshActive();
         window.StateChanged += (_, _) => _minimized = window.WindowState == WindowState.Minimized;
         RestorePlacement(window, logger);
         // 終了時だけだとシャットダウンや強制終了で失われるため、移動・リサイズ完了時にも保存する。
@@ -45,6 +56,11 @@ public partial class App : Application
         SessionEnding += (_, _) => SavePlacement();
         _scheduler = new UpdateScheduler(_notifier, clock, vm.OnChanged, () => _minimized, logger);
         MainWindow = window;
+        _instance.ListenShowRequests(() => Dispatcher.BeginInvoke(() =>
+        {
+            if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+            window.Activate();
+        }));
         window.Show();
         vm.OnChanged();
         _scheduler.Start();
@@ -73,6 +89,10 @@ public partial class App : Application
         _scheduler?.Dispose();
         _notifier?.Dispose();
         _foreground?.Dispose();
+        _instance?.Dispose();
         base.OnExit(e);
     }
+
+    private const uint AsfwAny = unchecked((uint)-1);
+    [DllImport("user32.dll")] private static extern bool AllowSetForegroundWindow(uint pid);
 }
